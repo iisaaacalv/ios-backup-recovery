@@ -1,5 +1,7 @@
 # iOS Backup Recovery
 
+<img width="616" height="257" alt="image" src="https://github.com/user-attachments/assets/94a87c68-d45a-425f-9266-8c249a9792e5" />
+
 Herramientas para **extraer archivos de una copia de seguridad de iOS** (iTunes / Finder) sin restaurar el dispositivo.
 
 Útil cuando la restauración nativa falla por un archivo corrupto (el típico proceso que se queda atascado a mitad). Una copia de iOS no es un único bloque monolítico: es un sistema de archivos indexado en una base de datos SQLite (`Manifest.db`) que mapea cada archivo (renombrado a un hash) con su ruta y nombre real. Estas herramientas leen ese índice y copian los archivos **uno a uno**, saltándose los corruptos, así recuperas todo lo que está intacto aunque la restauración completa se abortara.
