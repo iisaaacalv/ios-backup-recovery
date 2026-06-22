@@ -43,13 +43,20 @@ function Get-Sqlite {
 # ----------------------------------------------------------------
 function Get-Files-Sqlite {
     param($SqliteExe, $DbPath, $Filter)
-    $query = "SELECT fileID, relativePath FROM Files WHERE $Filter;"
+    # flags = 1 -> es un archivo real (no carpeta ni symlink)
+    $where = "flags = 1"
+    if ($Filter) { $where = "($Filter) AND flags = 1" }
+    $query = "SELECT fileID, domain, relativePath FROM Files WHERE $where;"
     $rows = & $SqliteExe -separator "|" $DbPath $query
     $result = @()
     foreach ($r in $rows) {
-        $p = $r -split '\|', 2
-        if ($p.Count -eq 2 -and $p[0]) {
-            $result += [PSCustomObject]@{ fileID = $p[0].Trim(); relativePath = $p[1] }
+        $p = $r -split '\|', 3
+        if ($p.Count -eq 3 -and $p[0]) {
+            $result += [PSCustomObject]@{
+                fileID       = $p[0].Trim()
+                domain       = $p[1]
+                relativePath = $p[2]
+            }
         }
     }
     return $result
@@ -99,6 +106,75 @@ function Extraer {
     Write-Progress -Activity "Extrayendo $Etiqueta" -Completed
     Write-Host "  $Etiqueta -> recuperados: $ok / $total  (saltados: $fallos)" -ForegroundColor Green
 }
+
+# ----------------------------------------------------------------
+#  Extrae respetando el arbol real de carpetas (domain/relativePath)
+# ----------------------------------------------------------------
+function Extraer-Arbol {
+    param($Files, $BackupDir, $OutDir, $Etiqueta)
+
+    if ($Files.Count -eq 0) {
+        Write-Host "  No se encontraron archivos para: $Etiqueta" -ForegroundColor Yellow
+        return
+    }
+
+    $raiz = Join-Path $OutDir $Etiqueta
+    New-Item -ItemType Directory -Force -Path $raiz | Out-Null
+
+    $ok = 0; $fallos = 0; $total = $Files.Count; $i = 0
+    foreach ($f in $Files) {
+        $i++
+        $fid = $f.fileID
+        if ($fid.Length -lt 2) { continue }
+        $sub = $fid.Substring(0,2)
+        $src = Join-Path (Join-Path $BackupDir $sub) $fid
+
+        # ruta de destino = domain\relativePath, limpiando caracteres invalidos
+        $rel = ($f.domain + "\" + $f.relativePath) -replace '/', '\'
+        $rel = $rel -replace '[:*?"<>|]', '_'
+        if ([string]::IsNullOrWhiteSpace($rel)) { $rel = $fid }
+        $dst = Join-Path $raiz $rel
+
+        Write-Progress -Activity "Extrayendo $Etiqueta" -Status "$i de $total" -PercentComplete (($i/$total)*100)
+
+        if (Test-Path $src) {
+            try {
+                $dirDst = Split-Path $dst -Parent
+                if (-not (Test-Path $dirDst)) { New-Item -ItemType Directory -Force -Path $dirDst | Out-Null }
+                Copy-Item -LiteralPath $src -Destination $dst -Force
+                $ok++
+            } catch {
+                $fallos++   # corrupto, ruta demasiado larga, o ilegible -> se salta
+            }
+        } else {
+            $fallos++
+        }
+    }
+    Write-Progress -Activity "Extrayendo $Etiqueta" -Completed
+    Write-Host "  $Etiqueta -> recuperados: $ok / $total  (saltados: $fallos)" -ForegroundColor Green
+    Write-Host "  Guardado en: $raiz" -ForegroundColor Green
+}
+
+# ----------------------------------------------------------------
+#  Filtro SQL: excluye dominios de sistema y datos internos de apps
+#  (deja fuera cachés, BBDD de apps, ajustes, etc.)
+# ----------------------------------------------------------------
+$EXCLUIR_SISTEMA = @"
+domain NOT LIKE 'SystemPreferencesDomain%'
+AND domain NOT LIKE 'KeychainDomain%'
+AND domain NOT LIKE 'ManagedPreferencesDomain%'
+AND domain NOT LIKE 'RootDomain%'
+AND domain NOT LIKE 'WirelessDomain%'
+AND relativePath NOT LIKE '%/Library/Caches/%'
+AND relativePath NOT LIKE '%/Library/Cookies/%'
+AND relativePath NOT LIKE '%/Library/Preferences/%'
+AND relativePath NOT LIKE '%.sqlite%'
+AND relativePath NOT LIKE '%.db'
+AND relativePath NOT LIKE '%.plist'
+AND relativePath NOT LIKE '%.log'
+AND relativePath NOT LIKE 'Library/SMS/%'
+AND relativePath != ''
+"@
 
 # ----------------------------------------------------------------
 #  Filtros SQL por categoria
@@ -194,6 +270,9 @@ function Menu {
     Write-Host "  4) Audio (m4a, mp3...)"
     Write-Host "  5) TODO (documentos + fotos + videos + audio)"
     Write-Host "  6) Contar cuantos hay de cada tipo (sin extraer)"
+    Write-Host "  ----------------------------------------------------"
+    Write-Host "  7) ARBOL COMPLETO (todo el backup, estructura real)" -ForegroundColor DarkYellow
+    Write-Host "  8) SOLO MIS DATOS (todo menos sistema y datos de apps)" -ForegroundColor DarkYellow
     Write-Host "  0) Salir"
     Write-Host "===================================================="
 }
@@ -222,6 +301,20 @@ while ($true) {
                 $f = Get-Files-Sqlite $sqlite $DbPath $FILTROS[$cat]
                 Write-Host ("  {0,-12}: {1}" -f $cat, $f.Count) -ForegroundColor Cyan
             }
+            Pausa
+        }
+        "7" {
+            Write-Host ""
+            Write-Host "Extrayendo el arbol COMPLETO (incluye sistema y datos de apps)..." -ForegroundColor DarkYellow
+            $f = Get-Files-Sqlite $sqlite $DbPath $null
+            Extraer-Arbol $f $BackupDir $OutDir "Arbol_Completo"
+            Pausa
+        }
+        "8" {
+            Write-Host ""
+            Write-Host "Extrayendo SOLO tus datos (sin sistema ni datos internos de apps)..." -ForegroundColor DarkYellow
+            $f = Get-Files-Sqlite $sqlite $DbPath $EXCLUIR_SISTEMA
+            Extraer-Arbol $f $BackupDir $OutDir "Mis_Datos"
             Pausa
         }
         "0" { Write-Host "Hasta luego."; break }

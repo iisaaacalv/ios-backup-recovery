@@ -6,11 +6,15 @@ Herramienta en PowerShell para **extraer archivos de una copia de seguridad de i
 
 ## Características
 
-- Menú interactivo: documentos, fotos, vídeos, audio, todo, o solo contar.
+- Menú interactivo con varias opciones de extracción:
+  - Por categoría: documentos, fotos, vídeos, audio, o todo junto.
+  - **Árbol completo:** extrae todo el backup reconstruyendo la estructura real de carpetas (`domain` + ruta original). Incluye archivos de sistema y datos internos de apps.
+  - **Solo mis datos:** extrae el contenido de usuario (fotos, vídeos, documentos, apuntes, audio...) reconstruyendo carpetas, pero filtrando dominios de sistema y basura técnica (cachés, bases de datos internas, plists, logs).
+  - Contador: cuenta cuántos archivos hay de cada tipo sin extraer nada.
 - Detecta automáticamente la carpeta del backup (UDID) aunque apuntes a la carpeta padre.
 - Avisa si el backup está cifrado.
 - Se salta los archivos corruptos o ilegibles sin interrumpir el proceso.
-- Organiza la salida por tipo y evita colisiones de nombres usando un prefijo del hash.
+- Organiza la salida y evita colisiones de nombres.
 
 ## Requisitos
 
