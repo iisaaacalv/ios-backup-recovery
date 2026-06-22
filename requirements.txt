@@ -1,0 +1,4 @@
+# Solo necesario para la version Python (recuperar_backup.py)
+# y unicamente si vas a abrir backups CIFRADOS.
+colorama            # colores en la terminal (opcional pero recomendado)
+iphone_backup_decrypt   # descifrado de backups cifrados
