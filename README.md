@@ -1,6 +1,6 @@
 # iOS Backup Recovery
 
-<img width="616" height="257" alt="image" src="https://github.com/user-attachments/assets/94a87c68-d45a-425f-9266-8c249a9792e5" />
+<img width="610" height="192" alt="image" src="https://github.com/user-attachments/assets/30c31a09-dcc3-42fc-ae0f-a47fe28d9c11" />
 
 Herramientas para **extraer archivos de una copia de seguridad de iOS** (iTunes / Finder) sin restaurar el dispositivo.
 
