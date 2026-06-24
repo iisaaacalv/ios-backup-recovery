@@ -297,7 +297,7 @@ def extraer(backup, filas, out_dir, etiqueta, por_arbol):
 # ================================================================
 #  MENU
 # ================================================================
-def menu():
+def menu(out_dir):
     print(f"\n{C_CYAN}{C_BRIGHT}============== QUE QUIERES SACAR? =============={C_RST}")
     print("  1) Documentos (Word, PDF, PPT, Excel, txt...)")
     print("  2) Fotos (jpg, png, heic...)")
@@ -308,8 +308,26 @@ def menu():
     print(f"  {C_DIM}-----------------------------------------------{C_RST}")
     print(f"  {C_MAG}7) ARBOL COMPLETO (todo el backup, estructura real){C_RST}")
     print(f"  {C_MAG}8) SOLO MIS DATOS (todo menos sistema y datos de apps){C_RST}")
+    print(f"  {C_DIM}-----------------------------------------------{C_RST}")
+    print(f"  9) Cambiar carpeta de salida")
     print("  0) Salir")
+    print(f"{C_DIM}  Salida actual: {out_dir}{C_RST}")
     print(f"{C_CYAN}================================================{C_RST}")
+
+
+def pedir_carpeta_salida(actual):
+    """Pide una nueva carpeta de salida; ENTER mantiene la actual."""
+    print(f"\nCarpeta de salida actual:\n  {actual}")
+    nueva = input("Nueva carpeta (pega la ruta, o ENTER para no cambiar):\n> ").strip().strip('"')
+    if not nueva:
+        return actual
+    try:
+        os.makedirs(nueva, exist_ok=True)
+        ok(f"Salida cambiada a: {nueva}")
+        return nueva
+    except Exception as e:
+        err(f"No se pudo usar esa carpeta ({e}). Se mantiene la anterior.")
+        return actual
 
 
 def localizar_backup(ruta):
@@ -354,10 +372,19 @@ def main():
     # por si no existe Desktop (algunos Windows en otros idiomas)
     if not os.path.isdir(os.path.dirname(out_dir)):
         out_dir = os.path.join(os.path.expanduser("~"), "Recuperado_Backup")
+
+    info(f"\nCarpeta de salida por defecto:\n  {out_dir}")
+    resp = input("Pulsa ENTER para usarla, o pega otra ruta (ej. E:\\Recuperado_Backup):\n> ").strip().strip('"')
+    if resp:
+        try:
+            os.makedirs(resp, exist_ok=True)
+            out_dir = resp
+        except Exception as e:
+            err(f"No se pudo usar esa carpeta ({e}). Se mantiene la de por defecto.")
     info(f"Salida: {out_dir}")
 
     while True:
-        menu()
+        menu(out_dir)
         try:
             op = input("Opcion> ").strip()
         except EOFError:
@@ -394,6 +421,9 @@ def main():
             filas = backup.consultar(FILTRO_MIS_DATOS)
             extraer(backup, filas, out_dir, "Mis_Datos", por_arbol=True)
             pausa()
+
+        elif op == "9":
+            out_dir = pedir_carpeta_salida(out_dir)
 
         elif op == "0":
             ok("Hasta luego.")

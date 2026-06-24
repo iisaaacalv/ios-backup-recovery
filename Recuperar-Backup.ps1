@@ -316,13 +316,28 @@ if (Test-Path $manifestPlist) {
 
 # --- Carpeta de salida ---
 $OutDir = Join-Path ([Environment]::GetFolderPath("Desktop")) "Recuperado_Backup"
+if ([string]::IsNullOrWhiteSpace($OutDir)) {
+    $OutDir = Join-Path $env:USERPROFILE "Recuperado_Backup"
+}
 Write-Host ""
-Write-Host "Los archivos se guardaran en: $OutDir" -ForegroundColor Cyan
+Write-Host "Carpeta de salida por defecto:" -ForegroundColor Cyan
+Write-Host "  $OutDir"
+$resp = (Read-Host "Pulsa ENTER para usarla, o pega otra ruta (ej. E:\Recuperado_Backup)").Trim().Trim('"')
+if (-not [string]::IsNullOrWhiteSpace($resp)) {
+    try {
+        if (-not (Test-Path $resp)) { New-Item -ItemType Directory -Force -Path $resp | Out-Null }
+        $OutDir = $resp
+    } catch {
+        Write-Host "No se pudo usar esa carpeta. Se mantiene la de por defecto." -ForegroundColor Red
+    }
+}
+Write-Host "Salida: $OutDir" -ForegroundColor Cyan
 
 # ================================================================
 #  MENU
 # ================================================================
 function Menu {
+    param($OutDir)
     Write-Host ""
     Write-Host "================ QUE QUIERES SACAR? ================" -ForegroundColor Cyan
     Write-Host "  1) Documentos (Word, PDF, PPT, Excel, txt...)"
@@ -334,12 +349,15 @@ function Menu {
     Write-Host "  ----------------------------------------------------"
     Write-Host "  7) ARBOL COMPLETO (todo el backup, estructura real)" -ForegroundColor DarkYellow
     Write-Host "  8) SOLO MIS DATOS (todo menos sistema y datos de apps)" -ForegroundColor DarkYellow
+    Write-Host "  ----------------------------------------------------"
+    Write-Host "  9) Cambiar carpeta de salida"
     Write-Host "  0) Salir"
+    Write-Host "  Salida actual: $OutDir" -ForegroundColor DarkGray
     Write-Host "===================================================="
 }
 
 while ($true) {
-    Menu
+    Menu $OutDir
     $op = (Read-Host "Opcion").Trim()
 
     switch ($op) {
@@ -377,6 +395,18 @@ while ($true) {
             $f = Get-Files-Sqlite $sqlite $DbPath $EXCLUIR_SISTEMA
             Extraer-Arbol $f $BackupDir $OutDir "Mis_Datos"
             Pausa
+        }
+        "9" {
+            $nueva = (Read-Host "Nueva carpeta de salida (pega la ruta, o ENTER para no cambiar)").Trim().Trim('"')
+            if (-not [string]::IsNullOrWhiteSpace($nueva)) {
+                try {
+                    if (-not (Test-Path $nueva)) { New-Item -ItemType Directory -Force -Path $nueva | Out-Null }
+                    $OutDir = $nueva
+                    Write-Host "Salida cambiada a: $OutDir" -ForegroundColor Green
+                } catch {
+                    Write-Host "No se pudo usar esa carpeta. Se mantiene la anterior." -ForegroundColor Red
+                }
+            }
         }
         "0" { Write-Host "Hasta luego."; break }
         default { Write-Host "Opcion no valida." -ForegroundColor Yellow }

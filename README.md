@@ -28,6 +28,7 @@ Menú interactivo con varias opciones:
 - **Árbol completo:** extrae todo el backup reconstruyendo la estructura real de carpetas (`domain` + ruta original). Incluye archivos de sistema y datos internos de apps.
 - **Solo mis datos:** extrae el contenido de usuario (fotos, vídeos, documentos, apuntes, audio...) reconstruyendo carpetas, pero filtrando dominios de sistema y basura técnica (cachés, bases de datos internas, plists, logs, cookies). Es la opción recomendada para el 90% de los casos.
 - **Contador:** cuenta cuántos archivos hay de cada tipo sin extraer nada.
+- **Carpeta de salida configurable:** al arrancar puedes aceptar la carpeta por defecto (Escritorio) o indicar otra (p. ej. una unidad externa), y cambiarla en cualquier momento desde el menú.
 
 Características comunes: detección automática de la carpeta del backup (UDID), aviso si está cifrado, y salto de archivos corruptos/ilegibles sin interrumpir el proceso (al final indica `recuperados / total` y cuántos se saltaron). Además, ambas generan un **log** (`recuperado.log`) en la carpeta de salida con la hora de inicio y fin, totales, y la lista de archivos saltados (nombre, dominio, ruta y hash) — útil para trazabilidad.
 
