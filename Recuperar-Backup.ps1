@@ -1,7 +1,7 @@
 <#
 ================================================================
   iOS Backup Recovery  -  Recuperar-Backup.ps1
-  https://github.com/<tu-usuario>/ios-backup-recovery
+  https://github.com/iisaaacalv/ios-backup-recovery
 
   RECUPERADOR DE BACKUP iOS  (iTunes / Finder)
   Extrae archivos de una copia de seguridad sin restaurar nada.
@@ -63,20 +63,70 @@ function Get-Files-Sqlite {
 }
 
 # ----------------------------------------------------------------
+#  Anade lineas al log dentro de la carpeta de salida
+# ----------------------------------------------------------------
+function Escribir-Log {
+    param($OutDir, $Lineas)
+    try {
+        if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
+        $rutaLog = Join-Path $OutDir "recuperado.log"
+        Add-Content -Path $rutaLog -Value $Lineas -Encoding UTF8
+        return $rutaLog
+    } catch {
+        return $null
+    }
+}
+
+# ----------------------------------------------------------------
+#  Construye y escribe el bloque de log de una extraccion
+# ----------------------------------------------------------------
+function Log-Extraccion {
+    param($OutDir, $Etiqueta, $Inicio, $Fin, $BackupDir, $Cifrado, $Total, $Ok, $Fallos, $Raiz, $Saltados)
+    $L = @()
+    $L += "============================================================"
+    $L += "EXTRACCION: $Etiqueta"
+    $L += "Inicio  : $($Inicio.ToString('yyyy-MM-dd HH:mm:ss'))"
+    $L += "Fin     : $($Fin.ToString('yyyy-MM-dd HH:mm:ss'))"
+    $L += "Duracion: $($Fin - $Inicio)"
+    $L += "Backup origen: $BackupDir"
+    $L += "Cifrado: $(if ($Cifrado) {'si'} else {'no'})"
+    $L += "Total en indice : $Total"
+    $L += "Recuperados     : $Ok"
+    $L += "Saltados        : $Fallos"
+    $L += "Carpeta salida  : $Raiz"
+    $listaSaltados = @($Saltados)
+    if ($listaSaltados.Count -gt 0) {
+        $L += ""
+        $L += "ARCHIVOS SALTADOS (corruptos / ilegibles / faltantes):"
+        foreach ($s in $listaSaltados) {
+            $nombre = Split-Path $s.relativePath -Leaf
+            if ([string]::IsNullOrWhiteSpace($nombre)) { $nombre = "(sin nombre)" }
+            $L += "  - $nombre  |  dominio: $($s.domain)  |  ruta: $($s.relativePath)  |  hash: $($s.fileID)"
+        }
+    }
+    $L += ""
+    $ruta = Escribir-Log $OutDir $L
+    if ($ruta) { Write-Host "  Log: $ruta" -ForegroundColor Cyan }
+}
+
+# ----------------------------------------------------------------
 #  Copia los archivos a la carpeta de salida, por tipo
 # ----------------------------------------------------------------
 function Extraer {
-    param($Files, $BackupDir, $OutDir, $Etiqueta)
+    param($Files, $BackupDir, $OutDir, $Etiqueta, $Cifrado = $false)
 
     if ($Files.Count -eq 0) {
         Write-Host "  No se encontraron archivos de tipo: $Etiqueta" -ForegroundColor Yellow
+        Escribir-Log $OutDir @("[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] $Etiqueta: sin archivos que coincidan.", "") | Out-Null
         return
     }
 
     $destino = Join-Path $OutDir $Etiqueta
     New-Item -ItemType Directory -Force -Path $destino | Out-Null
 
+    $inicio = Get-Date
     $ok = 0; $fallos = 0; $total = $Files.Count; $i = 0
+    $saltados = @()
     foreach ($f in $Files) {
         $i++
         $fid = $f.fileID
@@ -92,36 +142,43 @@ function Extraer {
 
         Write-Progress -Activity "Extrayendo $Etiqueta" -Status "$i de $total" -PercentComplete (($i/$total)*100)
 
+        $copiado = $false
         if (Test-Path $src) {
             try {
                 Copy-Item -LiteralPath $src -Destination $dst -Force
-                $ok++
+                $ok++; $copiado = $true
             } catch {
                 $fallos++   # archivo corrupto o ilegible -> se salta
             }
         } else {
             $fallos++
         }
+        if (-not $copiado) { $saltados += $f }
     }
+    $fin = Get-Date
     Write-Progress -Activity "Extrayendo $Etiqueta" -Completed
     Write-Host "  $Etiqueta -> recuperados: $ok / $total  (saltados: $fallos)" -ForegroundColor Green
+    Log-Extraccion $OutDir $Etiqueta $inicio $fin $BackupDir $Cifrado $total $ok $fallos $destino $saltados
 }
 
 # ----------------------------------------------------------------
 #  Extrae respetando el arbol real de carpetas (domain/relativePath)
 # ----------------------------------------------------------------
 function Extraer-Arbol {
-    param($Files, $BackupDir, $OutDir, $Etiqueta)
+    param($Files, $BackupDir, $OutDir, $Etiqueta, $Cifrado = $false)
 
     if ($Files.Count -eq 0) {
         Write-Host "  No se encontraron archivos para: $Etiqueta" -ForegroundColor Yellow
+        Escribir-Log $OutDir @("[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] $Etiqueta: sin archivos que coincidan.", "") | Out-Null
         return
     }
 
     $raiz = Join-Path $OutDir $Etiqueta
     New-Item -ItemType Directory -Force -Path $raiz | Out-Null
 
+    $inicio = Get-Date
     $ok = 0; $fallos = 0; $total = $Files.Count; $i = 0
+    $saltados = @()
     foreach ($f in $Files) {
         $i++
         $fid = $f.fileID
@@ -137,22 +194,26 @@ function Extraer-Arbol {
 
         Write-Progress -Activity "Extrayendo $Etiqueta" -Status "$i de $total" -PercentComplete (($i/$total)*100)
 
+        $copiado = $false
         if (Test-Path $src) {
             try {
                 $dirDst = Split-Path $dst -Parent
                 if (-not (Test-Path $dirDst)) { New-Item -ItemType Directory -Force -Path $dirDst | Out-Null }
                 Copy-Item -LiteralPath $src -Destination $dst -Force
-                $ok++
+                $ok++; $copiado = $true
             } catch {
                 $fallos++   # corrupto, ruta demasiado larga, o ilegible -> se salta
             }
         } else {
             $fallos++
         }
+        if (-not $copiado) { $saltados += $f }
     }
+    $fin = Get-Date
     Write-Progress -Activity "Extrayendo $Etiqueta" -Completed
     Write-Host "  $Etiqueta -> recuperados: $ok / $total  (saltados: $fallos)" -ForegroundColor Green
     Write-Host "  Guardado en: $raiz" -ForegroundColor Green
+    Log-Extraccion $OutDir $Etiqueta $inicio $fin $BackupDir $Cifrado $total $ok $fallos $raiz $saltados
 }
 
 # ----------------------------------------------------------------
@@ -165,9 +226,9 @@ AND domain NOT LIKE 'KeychainDomain%'
 AND domain NOT LIKE 'ManagedPreferencesDomain%'
 AND domain NOT LIKE 'RootDomain%'
 AND domain NOT LIKE 'WirelessDomain%'
-AND relativePath NOT LIKE '%/Library/Caches/%'
-AND relativePath NOT LIKE '%/Library/Cookies/%'
-AND relativePath NOT LIKE '%/Library/Preferences/%'
+AND relativePath NOT LIKE '%Library/Caches/%'
+AND relativePath NOT LIKE '%Library/Cookies/%'
+AND relativePath NOT LIKE '%Library/Preferences/%'
 AND relativePath NOT LIKE '%.sqlite%'
 AND relativePath NOT LIKE '%.db'
 AND relativePath NOT LIKE '%.plist'

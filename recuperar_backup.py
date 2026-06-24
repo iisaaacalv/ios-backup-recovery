@@ -3,7 +3,7 @@
 """
 ================================================================
   iOS Backup Recovery  -  recuperar_backup.py
-  https://github.com/TU-USUARIO/ios-backup-recovery
+  https://github.com/iisaaacalv/ios-backup-recovery
 
   Extrae archivos de una copia de seguridad de iOS (iTunes/Finder)
   sin restaurar el dispositivo. Funciona con backups cifrados
@@ -21,6 +21,7 @@ import sys
 import sqlite3
 import shutil
 import getpass
+from datetime import datetime
 
 # ----- Colores: usa colorama si esta, si no, sin color -----
 try:
@@ -207,19 +208,42 @@ class Backup:
 
 
 # ================================================================
+#  LOG
+# ================================================================
+def escribir_log(out_dir, lineas):
+    """Anade lineas al fichero de log dentro de la carpeta de salida."""
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+        ruta_log = os.path.join(out_dir, "recuperado.log")
+        with open(ruta_log, "a", encoding="utf-8") as f:
+            for ln in lineas:
+                f.write(ln + "\n")
+        return ruta_log
+    except Exception:
+        return None
+
+
+# ================================================================
 #  EXTRACCION (comun a categorias y a arbol)
 # ================================================================
 def extraer(backup, filas, out_dir, etiqueta, por_arbol):
     if not filas:
         warn(f"  No se encontraron archivos para: {etiqueta}")
+        escribir_log(out_dir, [
+            f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {etiqueta}: sin archivos que coincidan.",
+            ""
+        ])
         return
 
     raiz = os.path.join(out_dir, etiqueta)
     os.makedirs(raiz, exist_ok=True)
 
+    inicio = datetime.now()
     total = len(filas)
     okc = 0
     fallos = 0
+    saltados = []   # (file_id, domain, relative_path)
+
     for i, (file_id, domain, relative_path) in enumerate(filas, 1):
         if por_arbol:
             destino = os.path.join(raiz, ruta_segura(domain, relative_path))
@@ -231,6 +255,7 @@ def extraer(backup, filas, out_dir, etiqueta, por_arbol):
             okc += 1
         else:
             fallos += 1
+            saltados.append((file_id, domain, relative_path))
 
         # barra de progreso simple
         if i % 25 == 0 or i == total:
@@ -238,9 +263,35 @@ def extraer(backup, filas, out_dir, etiqueta, por_arbol):
             sys.stdout.write(f"\r  {etiqueta}: {i}/{total} ({pct}%)   ")
             sys.stdout.flush()
 
+    fin = datetime.now()
     print()
     ok(f"  {etiqueta} -> recuperados: {okc} / {total}  (saltados: {fallos})")
     info(f"  Guardado en: {raiz}")
+
+    # ---- escribir el log ----
+    lineas = []
+    lineas.append("=" * 60)
+    lineas.append(f"EXTRACCION: {etiqueta}")
+    lineas.append(f"Inicio : {inicio:%Y-%m-%d %H:%M:%S}")
+    lineas.append(f"Fin    : {fin:%Y-%m-%d %H:%M:%S}")
+    lineas.append(f"Duracion: {fin - inicio}")
+    lineas.append(f"Backup origen: {backup.ruta}")
+    lineas.append(f"Cifrado: {'si' if backup.cifrado else 'no'}")
+    lineas.append(f"Total en indice : {total}")
+    lineas.append(f"Recuperados     : {okc}")
+    lineas.append(f"Saltados        : {fallos}")
+    lineas.append(f"Carpeta salida  : {raiz}")
+    if saltados:
+        lineas.append("")
+        lineas.append("ARCHIVOS SALTADOS (corruptos / ilegibles / faltantes):")
+        for fid, dom, rel in saltados:
+            nombre = os.path.basename(rel) or "(sin nombre)"
+            lineas.append(f"  - {nombre}  |  dominio: {dom}  |  ruta: {rel}  |  hash: {fid}")
+    lineas.append("")
+
+    ruta_log = escribir_log(out_dir, lineas)
+    if ruta_log:
+        info(f"  Log: {ruta_log}")
 
 
 # ================================================================

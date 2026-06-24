@@ -1,7 +1,5 @@
 # iOS Backup Recovery
 
-<img width="610" height="192" alt="image" src="https://github.com/user-attachments/assets/30c31a09-dcc3-42fc-ae0f-a47fe28d9c11" />
-
 Herramientas para **extraer archivos de una copia de seguridad de iOS** (iTunes / Finder) sin restaurar el dispositivo.
 
 Útil cuando la restauración nativa falla por un archivo corrupto (el típico proceso que se queda atascado a mitad). Una copia de iOS no es un único bloque monolítico: es un sistema de archivos indexado en una base de datos SQLite (`Manifest.db`) que mapea cada archivo (renombrado a un hash) con su ruta y nombre real. Estas herramientas leen ese índice y copian los archivos **uno a uno**, saltándose los corruptos, así recuperas todo lo que está intacto aunque la restauración completa se abortara.
@@ -31,7 +29,7 @@ Menú interactivo con varias opciones:
 - **Solo mis datos:** extrae el contenido de usuario (fotos, vídeos, documentos, apuntes, audio...) reconstruyendo carpetas, pero filtrando dominios de sistema y basura técnica (cachés, bases de datos internas, plists, logs, cookies). Es la opción recomendada para el 90% de los casos.
 - **Contador:** cuenta cuántos archivos hay de cada tipo sin extraer nada.
 
-Características comunes: detección automática de la carpeta del backup (UDID), aviso si está cifrado, y salto de archivos corruptos/ilegibles sin interrumpir el proceso (al final indica `recuperados / total` y cuántos se saltaron).
+Características comunes: detección automática de la carpeta del backup (UDID), aviso si está cifrado, y salto de archivos corruptos/ilegibles sin interrumpir el proceso (al final indica `recuperados / total` y cuántos se saltaron). Además, ambas generan un **log** (`recuperado.log`) en la carpeta de salida con la hora de inicio y fin, totales, y la lista de archivos saltados (nombre, dominio, ruta y hash) — útil para trazabilidad.
 
 ## Ruta habitual del backup
 
